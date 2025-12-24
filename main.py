@@ -1,170 +1,219 @@
+import json
+import urllib.request
 import random
-import os
+import datetime
+import csv
 import sys
-import time
 
-# --- PENGATURAN WARNA & TAMPILAN ---
-class Col:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+# --- KONFIGURASI API ---
+BASE_URL = "https://ibnux.github.io/data-indonesia"
 
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
+def fetch_data(endpoint):
+    """Mengambil data JSON dari URL tanpa library eksternal"""
+    try:
+        url = f"{BASE_URL}/{endpoint}"
+        with urllib.request.urlopen(url) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode())
+                return data
+    except Exception as e:
+        print(f"[Error Koneksi] Gagal mengambil data: {e}")
+        return []
+    return []
 
-def print_slow(str_text):
-    for char in str_text:
-        sys.stdout.write(char)
-        sys.stdout.flush()
-        time.sleep(0.01)
-    print()
-
-# --- DATA WILAYAH ---
-DATA_PROVINSI = {
-    '11': 'Aceh', '12': 'Sumatera Utara', '13': 'Sumatera Barat', '14': 'Riau',
-    '15': 'Jambi', '16': 'Sumatera Selatan', '17': 'Bengkulu', '18': 'Lampung',
-    '19': 'Kep. Bangka Belitung', '21': 'Kep. Riau',
-    '31': 'DKI Jakarta', '32': 'Jawa Barat', '33': 'Jawa Tengah', '34': 'DI Yogyakarta',
-    '35': 'Jawa Timur', '36': 'Banten',
-    '51': 'Bali', '52': 'Nusa Tenggara Barat', '53': 'Nusa Tenggara Timur',
-    '61': 'Kalimantan Barat', '62': 'Kalimantan Tengah', '63': 'Kalimantan Selatan',
-    '64': 'Kalimantan Timur', '65': 'Kalimantan Utara',
-    '71': 'Sulawesi Utara', '72': 'Sulawesi Tengah', '73': 'Sulawesi Selatan',
-    '74': 'Sulawesi Tenggara', '75': 'Gorontalo', '76': 'Sulawesi Barat',
-    '81': 'Maluku', '82': 'Maluku Utara', '91': 'Papua Barat', '94': 'Papua'
-}
-
-# --- LOGIC UTAMA ---
-def get_kode_by_name(input_nama):
-    if input_nama.lower() in ['all', '', 'semua']:
-        return None, "ACAK (Seluruh Indonesia)"
-    for kode, nama in DATA_PROVINSI.items():
-        if input_nama.lower() in nama.lower():
-            return kode, nama
-    return None, "Tidak Ditemukan (Default: ACAK)"
-
-def generate_data(jumlah, kode_prov, nama_prov, tahun_kunci=None):
-    results = []
+# --- FITUR WILAYAH ---
+def menu_pilih_wilayah_lengkap():
+    print("\nSedang mengambil data Provinsi se-Indonesia...", end="\r")
+    provinsi_list = fetch_data("propinsi.json")
     
-    print(f"\n{Col.CYAN}[+] Memproses permintaan...{Col.ENDC}")
-    time.sleep(0.5) # Efek loading
+    if not provinsi_list:
+        print("\nGagal terhubung. Cek internet.")
+        return None
+
+    # 1. PILIH PROVINSI
+    print("\n" + "="*40)
+    print("   PILIH PROVINSI")
+    print("="*40)
+    for p in provinsi_list:
+        print(f"[{p['id']}] {p['nama']}")
+    
+    id_prov = input("\n>> Masukkan Kode Provinsi: ")
+    nama_prov = next((p['nama'] for p in provinsi_list if p['id'] == id_prov), None)
+    if not nama_prov: return None
+
+    # 2. PILIH KABUPATEN
+    print(f"\nMengambil data Kabupaten di {nama_prov}...", end="\r")
+    kab_list = fetch_data(f"kabupaten/{id_prov}.json")
+    
+    print("\n" + "="*40)
+    print(f"   PILIH KAB/KOTA (PROV: {nama_prov})")
+    print("="*40)
+    for k in kab_list:
+        print(f"[{k['id']}] {k['nama']}")
+
+    id_kab_full = input("\n>> Masukkan Kode Kab/Kota: ")
+    nama_kab = next((k['nama'] for k in kab_list if k['id'] == id_kab_full), None)
+    if not nama_kab: return None
+
+    # 3. PILIH KECAMATAN
+    print(f"\nMengambil data Kecamatan di {nama_kab}...", end="\r")
+    kec_list = fetch_data(f"kecamatan/{id_kab_full}.json")
+    
+    print("\n" + "="*40)
+    print(f"   PILIH KECAMATAN (KAB: {nama_kab})")
+    print("="*40)
+    for c in kec_list:
+        print(f"[{c['id']}] {c['nama']}")
+
+    id_kec_full = input("\n>> Masukkan Kode Kecamatan: ")
+    nama_kec = next((c['nama'] for c in kec_list if c['id'] == id_kec_full), None)
+    if not nama_kec: return None
+
+    kode_final = f"{id_prov}{id_kab_full[2:4]}{id_kec_full[4:6]}"
+    
+    print(f"\n[SUKSES] Wilayah: {nama_prov}, {nama_kab}, {nama_kec}")
+    return kode_final, f"{nama_prov}, {nama_kab}, {nama_kec}"
+
+# --- GENERATOR LOGIC ---
+def generate_nik_batch(jumlah, input_wilayah=None, nama_wilayah="Acak", input_tahun=None):
+    daftar_nik = []
     
     for i in range(jumlah):
-        # 1. PP
-        pp = kode_prov if kode_prov else random.choice(list(DATA_PROVINSI.keys()))
-        real_prov_name = DATA_PROVINSI.get(pp, "Unknown")
-        
-        # 2. DD
-        dd = f"{random.randint(1, 99):02d}"
-        
-        # 3. TT
-        if tahun_kunci:
-            yy = str(tahun_kunci)[-2:]
+        # 1. Wilayah
+        if input_wilayah:
+            kode_wilayah = input_wilayah
         else:
-            yy = str(random.randint(70, 99))
-            if random.random() > 0.8: yy = f"{random.randint(0, 5):02d}"
-            
-        mm = f"{random.randint(1, 12):02d}"
-        dd_tgl = f"{random.randint(1, 28):02d}"
-        tt = f"{dd_tgl}{mm}{yy}"
-        
-        # 4. BB & CCCC
-        bb = f"{random.randint(1001, 9999)}"
-        cccc = f"{random.randint(1, 9999):04d}"
-        
-        # 5. XX (Gender)
-        val_xx = random.randint(10, 99)
-        gender_type = random.choice(['L', 'P'])
-        
-        if gender_type == 'L':
-            if val_xx % 2 == 0: val_xx += 1
-            gender_label = "Laki-laki"
+            prov = random.randint(11, 90)
+            kab = random.randint(1, 99)
+            kec = random.randint(1, 99)
+            kode_wilayah = f"{prov}{kab:02d}{kec:02d}"
+
+        # 2. Tanggal
+        if input_tahun and len(input_tahun) == 4:
+            tahun = int(input_tahun)
         else:
-            if val_xx % 2 != 0: val_xx += 1
-            if val_xx > 99: val_xx -= 2
-            gender_label = "Perempuan"
-            
-        xx = f"{val_xx}"
+            tahun = random.randint(1970, 2005)
         
-        full_id = f"{pp}{dd}{tt}{bb}{cccc}{xx}"
-        results.append({
-            'id': full_id,
-            'prov': real_prov_name,
-            'gender': gender_label,
-            'dob': f"{dd_tgl}/{mm}/{yy}"
+        start_date = datetime.date(tahun, 1, 1)
+        end_date = datetime.date(tahun, 12, 31)
+        days_between = (end_date - start_date).days
+        tgl_lahir_obj = start_date + datetime.timedelta(days=random.randint(0, days_between))
+
+        # 3. Gender
+        jenis_kelamin = random.choice(['L', 'P'])
+        hari_final = tgl_lahir_obj.day + 40 if jenis_kelamin == 'P' else tgl_lahir_obj.day
+            
+        str_hari = f"{hari_final:02d}"
+        str_bulan = f"{tgl_lahir_obj.month:02d}"
+        str_tahun = str(tgl_lahir_obj.year)[-2:] 
+
+        kode_tanggal = f"{str_hari}{str_bulan}{str_tahun}"
+        str_urut = f"{random.randint(1, 9999):04d}"
+
+        nik = f"{kode_wilayah}{kode_tanggal}{str_urut}"
+        
+        daftar_nik.append({
+            'NO': i+1,
+            'NIK': nik,
+            'GENDER': jenis_kelamin,
+            'TGL_LAHIR': tgl_lahir_obj.strftime('%d-%m-%Y'),
+            'WILAYAH': nama_wilayah
         })
-        
-    return results
 
-# --- INTERFACE ---
-def main():
-    os.system('color') # Enable ANSI colors on Windows
-    clear_screen()
+    return daftar_nik
+
+# --- FUNGSI SIMPAN DATA ---
+def simpan_data(data_list):
+    print("\n" + "="*40)
+    print("   MENU PENYIMPANAN DATA")
+    print("="*40)
+    print("1. Simpan sebagai JSON (.json)")
+    print("2. Simpan sebagai TEXT (.txt)")
+    print("3. Simpan sebagai EXCEL (.xlsx)")
+    print("4. Tidak Disimpan (Keluar)")
     
-    # Banner
-    print(f"{Col.HEADER}{'='*60}")
-    print(f"   GENERATOR ID DUMMY INDONESIA v2.0   ")
-    print(f"{'='*60}{Col.ENDC}")
-    
-    # Input Section
-    print(f"\n{Col.BOLD}[ Langkah 1 ]{Col.ENDC} Pilih Wilayah Target")
-    print(f"{Col.WARNING}>> Contoh: Jakarta, Jabar, Bali, Papua (Ketik 'ALL' untuk acak){Col.ENDC}")
-    input_wil = input(f"{Col.GREEN}   Masukkan Nama Wilayah : {Col.ENDC}").strip()
-    
-    kode, nama = get_kode_by_name(input_wil)
-    print(f"   {Col.BLUE}-> Terpilih: {nama}{Col.ENDC}")
-    
-    print(f"\n{Col.BOLD}[ Langkah 2 ]{Col.ENDC} Filter Tahun Lahir")
-    input_thn = input(f"{Col.GREEN}   Masukkan Tahun (thn/ALL) : {Col.ENDC}").strip()
-    
-    thn_fix = None
-    if input_thn.lower() not in ['all', '']:
+    pilihan = input("Pilih format (1-4): ")
+    nama_file = "hasil_generate_nik"
+
+    if pilihan == '1':
+        with open(f"{nama_file}.json", "w") as f:
+            json.dump(data_list, f, indent=4)
+        print(f"\n[BERHASIL] Data disimpan di: {nama_file}.json")
+
+    elif pilihan == '2':
+        with open(f"{nama_file}.txt", "w") as f:
+            f.write("DAFTAR GENERATE NIK\n")
+            f.write("===================\n")
+            for item in data_list:
+                f.write(f"{item['NO']}. {item['NIK']} | {item['GENDER']} | {item['TGL_LAHIR']} | {item['WILAYAH']}\n")
+        print(f"\n[BERHASIL] Data disimpan di: {nama_file}.txt")
+
+    elif pilihan == '3':
         try:
-            thn_fix = int(input_thn)
-            print(f"   {Col.BLUE}-> Tahun dikunci: {thn_fix}{Col.ENDC}")
-        except:
-            print(f"   {Col.FAIL}-> Input invalid, set ke ACAK.{Col.ENDC}")
+            import pandas as pd
+            df = pd.DataFrame(data_list)
+            df.to_excel(f"{nama_file}.xlsx", index=False)
+            print(f"\n[BERHASIL] Data disimpan di: {nama_file}.xlsx")
+        except ImportError:
+            print("\n[INFO] Library 'pandas' tidak ditemukan.")
+            print("Mengalihkan penyimpanan ke format CSV (Excel Compatible).")
             
-    print(f"\n{Col.BOLD}[ Langkah 3 ]{Col.ENDC} Jumlah Data")
-    try:
-        jml = int(input(f"{Col.GREEN}   Berapa ID dibuat? : {Col.ENDC}"))
-    except:
-        jml = 10
-        
-    # Generate
-    data = generate_data(jml, kode, nama, thn_fix)
-    
-    # Output Table
-    clear_screen()
-    print(f"{Col.HEADER}=== HASIL GENERATE ({jml} Data) ==={Col.ENDC}\n")
-    
-    # Table Header
-    print(f"{Col.BOLD}{'No':<4} | {'ID DUMMY (20 Digit)':<22} | {'WILAYAH':<20} | {'GENDER':<10}{Col.ENDC}")
-    print("-" * 65)
-    
-    for idx, item in enumerate(data, 1):
-        # Warna selang-seling baris agar mudah dibaca
-        color_row = Col.CYAN if idx % 2 == 0 else Col.ENDC
-        
-        print(f"{color_row}{idx:<4} | {item['id']:<22} | {item['prov']:<20} | {item['gender']:<10}{Col.ENDC}")
+            with open(f"{nama_file}.csv", "w", newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=data_list[0].keys())
+                writer.writeheader()
+                writer.writerows(data_list)
+            print(f"[BERHASIL] Data disimpan di: {nama_file}.csv (Bisa dibuka di Excel)")
 
-    print("-" * 65)
-    
-    # Save Option
-    save = input(f"\n{Col.WARNING}[?] Simpan ke file 'hasil_id.txt'? (y/n): {Col.ENDC}").lower()
-    if save == 'y':
-        with open("hasil_id.txt", "w") as f:
-            f.write("ID DUMMY | WILAYAH | GENDER | TANGGAL LAHIR\n")
-            for item in data:
-                f.write(f"{item['id']} | {item['prov']} | {item['gender']} | {item['dob']}\n")
-        print(f"\n{Col.GREEN}[SUCCESS] File berhasil disimpan!{Col.ENDC}")
     else:
-        print(f"\n{Col.BLUE}Terima kasih.{Col.ENDC}")
+        print("\nProgram selesai tanpa menyimpan.")
+
+# --- MAIN ---
+def main():
+    print("="*60)
+    print("   GENERATOR NIK INDONESIA")
+    print("="*60)
+
+    # 1. Wilayah
+    print("\n1. Tentukan Wilayah:")
+    print("   [Y] Ya, load data Indonesia")
+    print("   [A] Acak / Random saja")
+    
+    opsi = input("Pilihan (Y/A): ").upper()
+    kode_wilayah = None
+    nama_wilayah = "Acak / Random"
+
+    if opsi == 'Y':
+        hasil_wilayah = menu_pilih_wilayah_lengkap()
+        if hasil_wilayah:
+            kode_wilayah, nama_wilayah = hasil_wilayah
+        else:
+            print("Mode ACAK aktif.")
+    
+    # 2. Parameter Lain
+    thn_input = input("\n2. Tahun Kelahiran (YYYY) [Enter untuk Acak]: ")
+    try:
+        jml_input = input("3. Jumlah NIK: ")
+        jumlah = int(jml_input)
+    except:
+        jumlah = 1
+
+    # 3. Eksekusi
+    hasil = generate_nik_batch(jumlah, kode_wilayah, nama_wilayah, thn_input)
+
+    # 4. TAMPILKAN SEMUA DATA (MODIFIED)
+    print("\n" + "="*60)
+    print(f"{'NO':<4} | {'NIK (16 DIGIT)':<20} | {'GENDER':<4} | {'TGL LAHIR'}")
+    print("-" * 60)
+    
+    # Loop ini akan menampilkan SEMUA data tanpa dipotong
+    for item in hasil:
+        print(f"{item['NO']:<4} | {item['NIK']:<20} | {item['GENDER']:<4} | {item['TGL_LAHIR']}")
+        
+    print("-" * 60)
+    print(f"Total {len(hasil)} data ditampilkan.")
+
+    # 5. Simpan
+    simpan_data(hasil)
 
 if __name__ == "__main__":
     main()
