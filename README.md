@@ -42,7 +42,7 @@ pip install pandas openpyxl
 2. Buka terminal/command prompt di folder script.
 3. Jalankan script:
 ```bash
-python nik_generator.py
+python main.py
 
 ```
 
