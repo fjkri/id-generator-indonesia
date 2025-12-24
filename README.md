@@ -2,7 +2,7 @@
 
 **Indo Dummy ID Generator** adalah alat berbasis Python CLI (Command Line Interface) untuk membuat data dummy nomor identitas (mirip format KTP/NIK) Indonesia secara massal.
 
-Alat ini dirancang untuk keperluan **testing aplikasi**, **populasi database**, atau keperluan **edukasi**. Script ini menghasilkan ID 20 digit dengan logika validasi wilayah dan jenis kelamin yang dapat disesuaikan.
+Alat ini dirancang untuk keperluan **testing aplikasi**, **populasi database**, atau keperluan **edukasi**. Script ini menghasilkan ID 16 digit dengan logika validasi wilayah dan jenis kelamin yang dapat disesuaikan.
 
 ![Python](https://img.shields.io/badge/Python-3.x-blue.svg) ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
