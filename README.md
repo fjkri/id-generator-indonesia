@@ -8,13 +8,12 @@ Alat ini dirancang untuk keperluan **testing aplikasi**, **populasi database**, 
 
 ## ✨ Fitur Unggulan
 
-* **Pencarian Wilayah Teks:** Cukup ketik nama wilayah (misal: "Jakarta", "Bali", "Jabar"), tidak perlu menghapal kode angka.
+* **Pencarian Wilayah Teks:** Cukup ketik nama wilayah (contoh: "Jakarta", "Bali", "Jabar").
 * **Data Wilayah Riil:** Menggunakan kode provinsi resmi Indonesia (BPS).
 * **Filter Tahun Lahir:** Bisa menentukan tahun kelahiran spesifik atau acak.
 * **Validasi Gender:**
     * Digit terakhir Ganjil = Laki-laki
     * Digit terakhir Genap = Perempuan
-* **Tampilan Estetik:** Output tabel rapi dengan pewarnaan terminal (CLI) yang nyaman dipandang.
 * **Export File:** Opsi untuk menyimpan hasil generate ke dalam file `.txt`.
 
 ## 📋 Prasyarat
